@@ -13,7 +13,8 @@ class ViewController: UIViewController {
     let realm = try! Realm()
     var tasks: Results<Tasks>!
     var tasksList: List<Tasks>!
-    
+    let randommark = ["@","#","$","^","&","*","("]
+    var count = Int.random(in: 0...55)
     @IBOutlet weak var tableView: UITableView!
     
     override func viewDidLoad() {
@@ -21,8 +22,18 @@ class ViewController: UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         createTasksDataAll()
+       // tableView.isEditing = true
         print(Realm.Configuration.defaultConfiguration.fileURL!)
     }
+    @IBAction func editingSegmented(_ sender: UISegmentedControl) {
+        if sender.selectedSegmentIndex == 0 {
+            tableView.isEditing = false
+        }
+        tableView.isEditing = true
+    
+    }
+    
+    
     @IBAction func taskAddBarButton(_ sender: UIBarButtonItem) {
         let dalog = UIAlertController(title: "taskAdd", message: "タスクを追加します", preferredStyle: .alert)
         dalog.addTextField(configurationHandler: nil)//dalogにTextFieldを加える//アクションシートにはテキストフィールドは加えることができない
@@ -31,11 +42,14 @@ class ViewController: UIViewController {
             guard let field = dalog.textFields?.first, let text = field.text, !text.isEmpty else{
                 return
             }
+            //self?.count += 1
             //クロージャ内でselfに参照するのでweakをつけて弱参照にしてる
             self?.newTaskData(task: text)
         }
-        //createTasksDataAll()
         dalog.addAction(createTaskAction)
+        
+       dalog.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
         present(dalog, animated: true, completion: nil)
     }
    
@@ -54,6 +68,9 @@ class ViewController: UIViewController {
     func newTaskData(task: String){
         let tasks = Tasks()
         tasks.task = task
+        tasks.id = String(count) + randommark.randomElement()!
+       //重複しないiDを持たせたい場合はプライマリーキーをつけるといい
+        // print(count)
         do {
             
             try realm.write({
@@ -113,7 +130,16 @@ class ViewController: UIViewController {
     }
     
     func deleteTasksData(task: Tasks){
-    
+        //let predicate = NSPredicate(format: "task == %@",task.task)//task一致したやつを指定
+        do {
+            try realm.write {
+                //self.tasks.removeAll()
+                realm.delete(task)
+                createTasksDataAll()
+            }
+        } catch  {
+            print(error)
+        }
     
     }
 
@@ -129,7 +155,76 @@ extension ViewController: UITableViewDelegate, UITableViewDataSource {
         cell.textLabel?.text = tasksList[indexPath.row].task
         return cell
     }
+    func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
+        return .delete //デリートで指定
+    }
+    
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        
+            
+            if editingStyle == .delete {
+                tableView.beginUpdates()
+                
+                try! realm.write { //realm.writeで削除処理することができる
+                self.realm.delete(tasks[indexPath.row])
+                }
+                tableView.deleteRows(at: [indexPath], with: .fade)
+                tableView.endUpdates()
+            }
     
     
-    
+    }
+    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
+      return true
+    }
+    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+        //並び替えをするときは List<Element>を定義してやった方がやりやすい
+        try! realm.write { //realm.writeで削除処理することができる
+            let task = tasksList[sourceIndexPath.row]
+            tasksList.remove(at: sourceIndexPath.row)//動かすのを処理して
+            //upDateTasksData(task: [destinationIndexPath.row], newTask: tasks[sourceIndexPath.row].task)
+            tasksList.insert(task, at: destinationIndexPath.row)
+        }
+        
+    }
+   
+    func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {
+        return true
+    }
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        let task = tasks[indexPath.row]
+        let dalogSheet = UIAlertController(title: "taskAdd", message: "Task management", preferredStyle: .actionSheet)
+        dalogSheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        dalogSheet.addAction(UIAlertAction(title: "Edit", style: .default, handler: { [weak self] _ in
+            
+            let dalog = UIAlertController(title: "Edit", message: "TaskEdit", preferredStyle: .alert)
+            
+            dalog.addTextField(configurationHandler: nil)
+            
+            dalog.textFields?.first?.text = task.task
+            
+            
+            
+            let EditTask = UIAlertAction(title: "EditTask", style: .default) {[weak self] _ in
+                //fieldでdalogでtextFieldが追加されてるか判断して⇨textでtextFieldsのテキストを取得する
+                guard let field = dalog.textFields?.first, let editText = field.text, !editText.isEmpty else{
+                    return
+                }
+                //クロージャ内でselfに参照するのでweakをつけて弱参照にしてる
+                self?.upDateTasksData(task: task, newTask: editText)
+            }
+            dalog.addAction(EditTask)
+            self?.present(dalog, animated: true)
+            
+        }))
+        
+        dalogSheet.addAction(UIAlertAction(title: "delete", style: .destructive, handler: {[weak self] _ in
+            
+            self?.deleteTasksData(task: task)
+            
+        }))
+        
+        present(dalogSheet, animated: true)
+    }
 }

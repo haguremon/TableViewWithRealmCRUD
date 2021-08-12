@@ -12,7 +12,7 @@ class Tasks : Object {
     @objc dynamic var task: String = ""
     @objc dynamic var memo: String = ""
     @objc dynamic var createAt = ""
-    @objc dynamic var id = 0
+    @objc dynamic var id = ""
 }
 
 //ここでTasksの配列を持つプロパティを用意
